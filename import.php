@@ -10,11 +10,14 @@
 	global $dbname;
 
   error_reporting(E_ALL);
-  ini_set('display_errors', 1);
 
 	if(isset($_POST['submit'])) {
 
     $uploaddir = 'uploads/';
+
+    if (!file_exists('uploads/')) {
+      mkdir('uploads/', 0777, true);
+    }
     
     //FilePath with File name.
     $uploadfile = $uploaddir . basename($_FILES["filename"]["name"]);
@@ -34,7 +37,7 @@
 
             // Choose the database and collection
             $db = $mongo->test;
-            $coll_work = $db->test_booking;
+            $coll_work = $db->test_booking_local;
         
             $headerArray = array("Reservation ID","Reservation Code","Group ID","Channel ID","Guest name","Guest Email","Room Name","Adults","Children","Infants","Total","Paid","Balance","Country","Arrival Date","Departure Date","Status","Created", "unitCode", "apartmentID", "interval");
 
