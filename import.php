@@ -9,6 +9,9 @@
 	global $password;
 	global $dbname;
 
+  error_reporting(E_ALL);
+  ini_set('display_errors', 1);
+
 	if(isset($_POST['submit'])) {
 
     $uploaddir = 'uploads/';
@@ -27,7 +30,7 @@
             //Import uploaded file to Database
 
             // Create a Mongo conenction
-            $mongo = new MongoDB\Client("mongodb://localhost:27017");
+            $mongo = new MongoDB\Client("mongodb://18.216.61.200:27017");
 
             // Choose the database and collection
             $db = $mongo->test;
