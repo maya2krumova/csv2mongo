@@ -33,7 +33,7 @@
             //Import uploaded file to Database
 
             // Create a Mongo conenction
-            $mongo = new MongoDB\Client("mongodb://18.219.137.161:27017");
+            $mongo = new MongoDB\Client("mongodb://localhost:27017");
 
             // Choose the database and collection
             $db = $mongo->test;
