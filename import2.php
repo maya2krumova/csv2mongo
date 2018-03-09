@@ -22,121 +22,125 @@
     //FilePath with File name.
     $uploadfile = $uploaddir . basename($_FILES["filename"]["name"]);
 
-    //Check if uploaded file is CSV and not any other format.
-    if (($_FILES["filename"]["type"] == "text/csv")){
+      //Check if uploaded file is CSV and not any other format.
+      if (($_FILES["filename"]["type"] == "text/csv")){
 
         //Move uploaded file to our Uploads folder.
         if (move_uploaded_file($_FILES["filename"]["tmp_name"], $uploadfile)) {
-            
-            echo "File Uploaded successfully";
 
-            //Import uploaded file to Database
+          echo "File Uploaded successfully";
 
-            // Create a Mongo conenction
-            $mongo = new MongoDB\Client("mongodb://localhost:27017");
+          //Import uploaded file to Database
 
-            // Choose the database and collection
-            $db = $mongo->test;
-            $coll_work = $db->test_booking_local;
-        
-            $headerArray = array("Reservation ID","Reservation Code","Group ID","Channel ID","Guest name","Guest Email","Room Name","Adults","Children","Infants","Total","Paid","Balance","Country","Arrival Date","Departure Date","Status","Created", "unitCode", "apartmentID", "interval");
+          // Create a Mongo conenction
+          $mongo = new MongoDB\Client("mongodb://localhost:27017");
+          $manager = new MongoDB\Driver\Manager('mongodb://localhost:27017');
+          
+          $bulk = new MongoDB\Driver\BulkWrite;
 
-            $index = 0;
-            $headIdx = 0;
-            $headerCount = count($headerArray);
+          // Choose the database and collection
+          $db = $mongo->test;
+          $coll_work = $db->test_booking_local;
 
-            if (($handle = fopen($uploadfile, "r")) !== FALSE) {
+          $headerArray = array("Reservation ID","Reservation Code","Group ID","Channel ID","Guest name","Guest Email","Room Name","Adults","Children","Infants","Total","Paid","Balance","Country","Arrival Date","Departure Date","Status","Created", "unitCode", "apartmentID", "interval");
 
-              while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+          $index = 0;
+          $headIdx = 0;
+          $headerCount = count($headerArray);
 
-                  if($index!=0){
+          if (($handle = fopen($uploadfile, "r")) !== FALSE) {
 
-                    $rowCount = count($data);
+            while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
 
-                    // we add two extra data fields - unitCode, apartmentID, interval
-                    if ($headerCount == ($rowCount + 3)) {
+              if($index!=0){
 
-                        $valArray = array();
+                $rowCount = count($data);
 
-                        for ($headIdx=0; $headIdx < $headerCount; $headIdx++) {
+                // var_dump($rowCount);
 
-                          if ($headIdx < $rowCount) {
+                $valArray = array();
+                // we add two extra data fields - unitCode, apartmentID, interval
+                if ($headerCount == ($rowCount + 3)) {
 
-                            if ($headIdx == 7 || $headIdx == 8 || $headIdx == 9) {
+                  for ($headIdx=0; $headIdx < $headerCount; $headIdx++) {
 
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => intval($data[$headIdx])));
-                            
-                            } else if ($headIdx == 10 || $headIdx == 11 || $headIdx == 12) {
+                    if ($headIdx < $rowCount) {
 
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => floatval($data[$headIdx])));
-                            
-                            } else if ($headIdx == 14 || $headIdx == 15) {
+                      if ($headIdx == 7 || $headIdx == 8 || $headIdx == 9) {
 
-                              // $valArray = array_merge($valArray , array($headerArray[$headIdx] => new DateTime($data[$headIdx])));
+                        $valArray[$headerArray[$headIdx]] = intval($data[$headIdx]);
 
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => $data[$headIdx]));
+                      } else if ($headIdx == 10 || $headIdx == 11 || $headIdx == 12) {
 
-                            }
-                            else {
-                              
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => $data[$headIdx]));
-                            }
+                        $valArray[$headerArray[$headIdx]] = floatval($data[$headIdx]);
 
-                          } else {
+                      } else if ($headIdx == 14 || $headIdx == 15) {
 
-                            if ($headIdx == $rowCount ) {
+                        $valArray[$headerArray[$headIdx]] = $data[$headIdx];
 
-                              // add unitCode
-                              // $unitCode = mt_rand(10000, 99999);
-                              $unitCode = substr($data[0], 0, 5);
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => $unitCode));
+                      }
+                      else {
 
-                            } elseif ($headIdx == ($rowCount + 1)) {
-                              
-                              $apartmentID = getApartmentID($data[6]);
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => $apartmentID));
+                        $valArray[$headerArray[$headIdx]] = $data[$headIdx];
+                      }
 
-                              // var_dump($valArray);
+                    } else {
 
-                            } elseif ($headIdx == ($rowCount + 2)) {
-                              
-                              $date_arrived = new DateTime($data[14]);
-                              $date_depature = new DateTime($data[15]);
+                      if ($headIdx == $rowCount ) {
 
-                              $interval = $date_arrived->diff($date_depature);
+                        // add unitCode
+                        // $unitCode = mt_rand(10000, 99999);
+                        $unitCode = substr($data[0], 0, 5);
+                        $valArray[$headerArray[$headIdx]] = $unitCode;
 
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => intval($interval->format("%a"))));
+                      } elseif ($headIdx == ($rowCount + 1)) {
 
-                            }
+                        $apartmentID = getApartmentID($data[6]);
+                        $valArray[$headerArray[$headIdx]] = $apartmentID;
 
-                          }
+                        // var_dump($valArray);
 
-                        }
+                      } elseif ($headIdx == ($rowCount + 2)) {
 
-                        $coll_work->insertOne($valArray);
+                        $date_arrived = new DateTime($data[14]);
+                        $date_depature = new DateTime($data[15]);
+
+                        $interval = $date_arrived->diff($date_depature);
+
+                        $valArray[$headerArray[$headIdx]] = intval($interval->format("%a"));
+
+                      }
 
                     }
-                    
-                    
                 }
 
-                $index++;
+                // var_dump($result);
+                // $coll_work->insertOne($valArray);
 
+                $bulk->insert($valArray);
+                
+
+                }
               }
 
-              fclose($handle);
+              $index++;
             }
 
-            $message = "Importing completed";
-            echo "<script type='text/javascript'>alert('$message');</script>";
+            $result = $manager->executeBulkWrite('check.collection', $bulk);
 
-          }
+          fclose($handle);
         }
-      else
-      {
-          //echo incase user uploads a non-csv file.
-          echo "Upload a CSV file Only.";
+
+        $message = "Importing completed";
+        echo "<script type='text/javascript'>alert('$message');</script>";
+
       }
+    }
+    else
+    {
+      //echo incase user uploads a non-csv file.
+      echo "Upload a CSV file Only.";
+    }
 	}
 
   function getApartmentID ($text) {
