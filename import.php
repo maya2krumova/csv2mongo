@@ -9,6 +9,12 @@
 	global $password;
 	global $dbname;
 
+  $searchResult = array();
+  $searchFlag = 0;
+
+  $manager = new MongoDB\Driver\Manager('mongodb://127.0.0.1:27017'); // server code
+  // $manager = new MongoDB\Driver\Manager('mongodb://localhost:27017'); // local codee
+
   error_reporting(E_ALL);
 
 	if(isset($_POST['submit'])) {
@@ -22,156 +28,229 @@
     //FilePath with File name.
     $uploadfile = $uploaddir . basename($_FILES["filename"]["name"]);
 
-    //Check if uploaded file is CSV and not any other format.
-    if (($_FILES["filename"]["type"] == "text/csv")){
+      //Check if uploaded file is CSV and not any other format.
+      if (($_FILES["filename"]["type"] == "text/csv")){
 
         //Move uploaded file to our Uploads folder.
         if (move_uploaded_file($_FILES["filename"]["tmp_name"], $uploadfile)) {
-            
-            echo "File Uploaded successfully";
 
-            //Import uploaded file to Database
+          //Import uploaded file to Database
 
-            // Create a Mongo conenction
-            $mongo = new MongoDB\Client("mongodb://localhost:27017");
+          $bulk = new MongoDB\Driver\BulkWrite;
 
-            // Choose the database and collection
-            $db = $mongo->test;
-            $coll_work = $db->test_booking_local;
-        
-            $headerArray = array("Reservation ID","Reservation Code","Group ID","Channel ID","Guest name","Guest Email","Room Name","Adults","Children","Infants","Total","Paid","Balance","Country","Arrival Date","Departure Date","Status","Created", "unitCode", "apartmentID", "interval");
+          $headerArray = array("Reservation_ID","Reservation_Code","Group_ID","Channel_ID","Guest_name","Guest_Email","Room_Name","Adults","Children","Infants","Total","Paid","Balance","Country","Arrival_Date","Departure_Date","Status","Created", "unitCode", "apartmentID", "interval","arrival_timestamp", "departure_timestamp");
 
-            $index = 0;
-            $headIdx = 0;
-            $headerCount = count($headerArray);
+          $index = 0;
+          $headIdx = 0;
+          $headerCount = count($headerArray);
 
-            if (($handle = fopen($uploadfile, "r")) !== FALSE) {
+          if (($handle = fopen($uploadfile, "r")) !== FALSE) {
 
-              while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+            while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
 
-                  if($index!=0){
+              if($index!=0){
 
-                    $rowCount = count($data);
+                $rowCount = count($data);
 
-                    // we add two extra data fields - unitCode, apartmentID, interval
-                    if ($headerCount == ($rowCount + 3)) {
+                $valArray = array();
+                // we add two extra data fields - unitCode, apartmentID, interval, arrival_timestamp, departure_timestamp
+                if ($headerCount == ($rowCount + 5)) {
 
-                        $valArray = array();
+                  for ($headIdx=0; $headIdx < $headerCount; $headIdx++) {
 
-                        for ($headIdx=0; $headIdx < $headerCount; $headIdx++) {
+                    if ($headIdx < $rowCount) {
 
-                          if ($headIdx < $rowCount) {
+                      if ($headIdx == 7 || $headIdx == 8 || $headIdx == 9) {
 
-                            if ($headIdx == 7 || $headIdx == 8 || $headIdx == 9) {
+                        $valArray[$headerArray[$headIdx]] = intval($data[$headIdx]);
 
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => intval($data[$headIdx])));
-                            
-                            } else if ($headIdx == 10 || $headIdx == 11 || $headIdx == 12) {
+                      } else if ($headIdx == 10 || $headIdx == 11 || $headIdx == 12) {
 
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => floatval($data[$headIdx])));
-                            
-                            } else if ($headIdx == 14 || $headIdx == 15) {
+                        $valArray[$headerArray[$headIdx]] = floatval($data[$headIdx]);
 
-                              // $valArray = array_merge($valArray , array($headerArray[$headIdx] => new DateTime($data[$headIdx])));
+                      }
+                      else {
 
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => $data[$headIdx]));
+                        $valArray[$headerArray[$headIdx]] = $data[$headIdx];
+                        
+                      }
 
-                            }
-                            else {
-                              
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => $data[$headIdx]));
-                            }
+                    } else {
 
-                          } else {
+                      if ($headIdx == $rowCount ) {
 
-                            if ($headIdx == $rowCount ) {
+                        // add unitCode
+                        // $unitCode = mt_rand(10000, 99999);
+                        $unitCode = substr($data[0], 0, 5);
+                        $valArray[$headerArray[$headIdx]] = $unitCode;
 
-                              // add unitCode
-                              // $unitCode = mt_rand(10000, 99999);
-                              $unitCode = substr($data[0], 0, 5);
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => $unitCode));
+                      } elseif ($headIdx == ($rowCount + 1)) {
 
-                            } elseif ($headIdx == ($rowCount + 1)) {
-                              
-                              $apartmentID = getApartmentID($data[6]);
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => $apartmentID));
+                        $apartmentID = getApartmentID($data[6]);
+                        $valArray[$headerArray[$headIdx]] = $apartmentID;
 
-                              // var_dump($valArray);
+                      } elseif ($headIdx == ($rowCount + 2)) {
 
-                            } elseif ($headIdx == ($rowCount + 2)) {
-                              
-                              $date_arrived = new DateTime($data[14]);
-                              $date_depature = new DateTime($data[15]);
+                        $date_arrived = new DateTime($data[14]);
+                        $date_depature = new DateTime($data[15]);
 
-                              $interval = $date_arrived->diff($date_depature);
+                        $interval = $date_arrived->diff($date_depature);
 
-                              $valArray = array_merge($valArray , array($headerArray[$headIdx] => intval($interval->format("%a"))));
+                        $valArray[$headerArray[$headIdx]] = intval($interval->format("%a"));
 
-                            }
+                      } elseif ($headIdx == ($rowCount + 3)) {
 
-                          }
+                        $date_arrived = new DateTime($data[14]);
 
-                        }
+                        $arrival_timestamp = $date_arrived->getTimestamp();
 
-                        $coll_work->insertOne($valArray);
+                        $valArray[$headerArray[$headIdx]] = $arrival_timestamp;
+
+                      } elseif ($headIdx == ($rowCount + 4)) {
+
+                        $date_depature = new DateTime($data[15]);
+
+                        $departure_timestamp = $date_depature->getTimestamp();
+
+                        $valArray[$headerArray[$headIdx]] = $departure_timestamp;
+
+                      }
+
 
                     }
-                    
-                    
                 }
 
-                $index++;
+                $bulk->insert($valArray);
 
+                }
               }
 
-              fclose($handle);
+              $index++;
             }
 
-            $message = "Importing completed";
-            echo "<script type='text/javascript'>alert('$message');</script>";
+            $result = $manager->executeBulkWrite('booking.collection', $bulk);
 
-          }
+          fclose($handle);
         }
-      else
-      {
-          //echo incase user uploads a non-csv file.
-          echo "Upload a CSV file Only.";
+
+        $message = "Importing completed";
+        echo "<script type='text/javascript'>alert('$message');</script>";
+
       }
+    }
+    else
+    {
+      //echo incase user uploads a non-csv file.
+      echo "Upload a CSV file Only.";
+    }
 	}
+  else if(isset($_GET['search_but'])) {
+
+    $searchFlag = 1;
+
+    $form_guest_name = $_GET["guestname"];
+    $form_from_date = $_GET["fromdate"];
+    $form_end_date = $_GET["enddate"];
+    $form_unitid = $_GET["unitid"];
+
+    $filter = [];
+
+    if (!empty($form_guest_name)) {
+      $filter["Guest_name"] = new MongoDB\BSON\Regex("{$form_guest_name}", "m");
+    }
+
+    if (!empty($form_unitid)) {
+      $filter["apartmentID"] = $form_unitid;
+    }
+
+    if (!empty($form_from_date)) {
+      
+      $fromdate = DateTime::createFromFormat("Y-m-d", $form_from_date);
+
+      $filter["arrival_timestamp"] = array('$lte' => $fromdate->getTimestamp());
+    }
+
+    if (!empty($form_end_date)) {
+      $enddate = DateTime::createFromFormat("Y-m-d", $form_end_date);
+
+      $filter["departure_timestamp"] = array('$gt' => $enddate->getTimestamp());
+    }
+
+    $options = [];
+
+
+    $query = new MongoDB\Driver\Query($filter, $options);
+    $searchResult = $manager->executeQuery('booking.collection', $query);
+    
+
+  }
+  else if(isset($_GET['search_current_guest'])) {
+
+    $searchFlag = 2;
+
+    $form_unitid = $_GET["search_unitid"];
+
+    $filter = [];
+
+    if (!empty($form_unitid)) {
+      $filter["apartmentID"] = $form_unitid;
+    }
+
+    $today = new DateTime();
+    $today_timestamp = $today->getTimestamp();
+
+    $filter["arrival_timestamp"] = array('$lte' => $today_timestamp);
+    $filter["departure_timestamp"] = array('$gt' => $today_timestamp);
+    $filter["Status"] = "Confirmed";
+
+    $options = [];
+
+    $query = new MongoDB\Driver\Query($filter, $options);
+    $searchResult = $manager->executeQuery('booking.collection', $query);
+    
+
+  }
+
+
 
   function getApartmentID ($text) {
 
   	$Address = array(
-    array('unitId' => '1','Room_Name' => 'Kornstr 4,  3. OG Links, 4 Zimmer','addrStreet' => 'Kornstr','addrNumber' => '4','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '7','accessDate' => '2018-02-27 14:56:12','live_update' => ''),
-    array('unitId' => '2','Room_Name' => 'Heiligenstr 12, 1. OG, Studio Nr 10','addrStreet' => 'Heiligenstr','addrNumber' => '12','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '10','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '3','Room_Name' => 'N?rnberger 43, 2. OG rechts, 2 Schlafzimmer','addrStreet' => 'N?rnberger','addrNumber' => '43','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '7','accessDate' => '2018-02-27 14:56:38','live_update' => ''),
-    array('unitId' => '4','Room_Name' => 'Kornstr 4, DG Rechts','addrStreet' => 'Kornstr','addrNumber' => '4','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '8','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '5','Room_Name' => 'The Hat Shop Nürnberger 43, Ground Floor','addrStreet' => 'N?rnberger','addrNumber' => '43','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '3','accessDate' => '2018-02-27 14:56:26','live_update' => ''),
-    array('unitId' => '6','Room_Name' => 'Heiligenstr 12, 2. OG, Zimmer 8','addrStreet' => 'Heiligenstr','addrNumber' => '12','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '8','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '7','Room_Name' => 'Heiligenstr 12, DG Links, Nr. 1','addrStreet' => 'Heiligenstr','addrNumber' => '12','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '1','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '8','Room_Name' => 'Heiligenstr 12, DG Rechts, Nr. 2','addrStreet' => 'Heiligenstr','addrNumber' => '12','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '2','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '9','Room_Name' => 'Heiligenstrasse 12, 2. OG Apartment 6','addrStreet' => 'Heiligenstr','addrNumber' => '12','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '6','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '10','Room_Name' => 'Kormstr 18, 2. OG Rechts, 2 Zimmer','addrStreet' => 'Kornstr','addrNumber' => '18','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '5','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '11','Room_Name' => 'Kornstr 18, 1.OG Rechts, 2 Schlafzimmer','addrStreet' => 'Kornstr','addrNumber' => '18','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '3','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '12','Room_Name' => 'Kornstr 18, 3.OG Rechts, 4 Zimmer','addrStreet' => 'Kornstr','addrNumber' => '18','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '7','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '13','Room_Name' => 'Kornstr 18, EG Links, 2 Schlafzimmer','addrStreet' => 'Kornstr','addrNumber' => '18','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '1','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '14','Room_Name' => 'Heiligenstr 12, 2. OG, Zimmer 3','addrStreet' => 'Heiligenstr','addrNumber' => '12','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '3','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '15','Room_Name' => 'Kornstr 4,  EG Links, 2 Schlafzimmer','addrStreet' => 'Kornstr','addrNumber' => '4','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '1','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '16','Room_Name' => 'Heiligenstr 12, 1.OG, Zimmer 12','addrStreet' => 'Heiligenstr','addrNumber' => '12','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '12','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '17','Room_Name' => 'Kornstr 4, Hinterhaus','addrStreet' => 'Kornstr','addrNumber' => '4','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '9','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '18','Room_Name' => 'Kornstr. 4,  1 Bedroom Ground Floor Apt. #2','addrStreet' => 'Kornstr','addrNumber' => '4','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '2','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '19','Room_Name' => 'N?rnberger 43, 2. OG Links, 3 Schlafzimmer','addrStreet' => 'N?rnberger','addrNumber' => '43','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '6','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '20','Room_Name' => 'Heiligenstr 12, 1.OG, Zimmer 11','addrStreet' => 'Heiligenstr','addrNumber' => '12','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '11','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '21','Room_Name' => 'N?rnberger 43, Ground Floor Left','addrStreet' => 'N?rnberger','addrNumber' => '43','addrCity' => 'Fuerth','addrZip' => '90762','unitNumber' => '1','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '22','Room_Name' => 'Schwabacherstr 65 - Apt 6 -  Room 1','addrStreet' => 'Schwabacherstr','addrNumber' => '65','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '6','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '23','Room_Name' => 'Schwabacherstr 65 - Apt 6 -  Room 2','addrStreet' => 'Schwabacherstr','addrNumber' => '65','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '6','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '24','Room_Name' => 'Schwabacherstr 65 - Apt 6 -  Room 3','addrStreet' => 'Schwabacherstr','addrNumber' => '65','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '6','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '25','Room_Name' => 'Schwabacherstr 65 - Apt 8 -  4th Floor Room 2','addrStreet' => 'Schwabacherstr','addrNumber' => '65','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '8','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '26','Room_Name' => 'Schwabacherstr 65 - Apt 8 -  4th Floor Room 3','addrStreet' => 'Schwabacherstr','addrNumber' => '65','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '8','accessDate' => '0000-00-00 00:00:00','live_update' => '1'),
-    array('unitId' => '27','Room_Name' => 'Schwabacherstr 65, 1.OG Rechts, 4 Zimmer','addrStreet' => 'Schwabacherstr','addrNumber' => '65','addrCity' => 'Fuerth','addrZip' => '90763','unitNumber' => '8','accessDate' => '0000-00-00 00:00:00','live_update' => '1')
-  );
+    array('Room_Name' => 'Schwabacher 65 - 2. OG links Room 1','unitId' => '23'),
+    array('Room_Name' => 'Schwabacher 65 - 2. OG links Room 2','unitId' => '24'),
+    array('Room_Name' => 'Schwabacher 65 - 2. OG links Room 3','unitId' => '25'),
+    array('Room_Name' => 'Schwabacher 65 - 2. OG links Room 4','unitId' => '26'),
+    array('Room_Name' => 'Schwabacherstr 65 - 3. OG rechts Room 1','unitId' => '27'),
+    array('Room_Name' => 'Schwabacherstr 65 - 3. OG rechts Room 2','unitId' => '28'),
+    array('Room_Name' => 'Schwabacherstr 65 - 3. OG rechts Room 3','unitId' => '29'),
+    array('Room_Name' => 'Schwabacherstr 65 - 4. OG rechts Room 1','unitId' => '30'),
+    array('Room_Name' => 'Schwabacherstr 65 - 4. OG rechts Room 2','unitId' => '31'),
+    array('Room_Name' => 'Schwabacherstr 65 - 4. OG rechts Room 3','unitId' => '32'),
+    array('Room_Name' => 'Kornstr 4, 3. OG Links, 4 Zimmer','unitId' => '1'),
+    array('Room_Name' => 'Kormstr 18, 2. OG Rechts, 2 Zimmer','unitId' => '10'),
+    array('Room_Name' => 'Kornstr 18, 1.OG Rechts, 2 Schlafzimmer','unitId' => '11'),
+    array('Room_Name' => 'Kornstr 18, 3.OG Rechts, 4 Zimmer','unitId' => '12'),
+    array('Room_Name' => 'Kornstr 18, EG Links, 2 Schlafzimmer','unitId' => '13'),
+    array('Room_Name' => 'Heiligenstr 12, 2. OG, Zimmer 3','unitId' => '14'),
+    array('Room_Name' => 'Kornstr 4, EG Links, 2 Schlafzimmer','unitId' => '15'),
+    array('Room_Name' => 'Heiligenstr 12, 1.OG, Zimmer 12','unitId' => '16'),
+    array('Room_Name' => 'Kornstr 4, Hinterhaus','unitId' => '17'),
+    array('Room_Name' => 'Kornstr. 4, 1 Bedroom Ground Floor Apt. #2','unitId' => '18'),
+    array('Room_Name' => 'Nürnberger 43, 2. OG Links, 3 Schlafzimmer','unitId' => '19'),
+    array('Room_Name' => 'Heiligenstr 12, 1. OG, Studio Nr 10','unitId' => '2'),
+    array('Room_Name' => 'Heiligenstr 12, 1.OG, Zimmer 11','unitId' => '20'),
+    array('Room_Name' => 'Nürnberger 43, Ground Floor Left','unitId' => '21'),
+    array('Room_Name' => 'Schwabacherstr 65, 1.OG Rechts, 4 Zimmer','unitId' => '22'),
+    array('Room_Name' => 'Nürnberger 43, 2. OG rechts, 2 Schlafzimmer','unitId' => '3'),
+    array('Room_Name' => 'Kornstr 4, DG Rechts','unitId' => '4'),
+    array('Room_Name' => 'The Hat Shop Nürnberger 43, Ground Floor','unitId' => '5'),
+    array('Room_Name' => 'Heiligenstr 12, 2. OG, Zimmer 8','unitId' => '6'),
+    array('Room_Name' => 'Heiligenstr 12, DG Links, Nr. 1','unitId' => '7'),
+    array('Room_Name' => 'Heiligenstr 12, DG Rechts, Nr. 2','unitId' => '8'),
+    array('Room_Name' => 'Heiligenstrasse 12, 2. OG Apartment 6','unitId' => '9')
+    );
 
-  foreach($Address as $key=>$value) {
+    foreach($Address as $key=>$value) {
 
   	    foreach($value as $c=>$d) {
 
@@ -185,18 +264,102 @@
   }
 
 	
-  // echo "now going to update DB....<br>";
+  $fieldArray = ["Reservation ID","Guest name","Guest Email","Room Name", "Apartment ID", "Adults","Total","Paid","Balance","Country","Arrival Date","Departure Date","Status","Created"];
+
+  // Global search for non query
+  if ($searchFlag == 0) {
+
+    $options = [];
+    $initFilter = [];
+
+    $today = new DateTime();
+    $today_timestamp = $today->getTimestamp();
+
+    $initFilter["arrival_timestamp"] = array('$lte' => $today_timestamp);
+    $initFilter["departure_timestamp"] = array('$gt' => $today_timestamp);
+    $initFilter["Status"] = "Confirmed";
+
+    $query = new MongoDB\Driver\Query($initFilter, $options);
+    $searchResult = $manager->executeQuery('booking.collection', $query);
+    
+  } 
 
 ?>
 
 <html>
     <body>
-         <form enctype='multipart/form-data' action='#' method='post'>
+      <form enctype='multipart/form-data' action='#' method='post'>
 
-         File name to import:<br />
+        <h3>Select the booking file to import: </h3>
 
-         <input size='50' type='file' name='filename'><br />
+        <input size='50' type='file' name='filename'><br />
 
-         <input type='submit' name='submit' value='Upload'></form>
+        <input type='submit' name='submit' value='Upload'>
+
+      </form>
+
+      <form enctype='multipart/form-data' action='#' method='get'>
+
+        <h3>Advanced Search</h3>
+
+        Guest name: <input type="text" name="guestname"><br/>
+        Unit ID(Apartment ID): <input type="text" name="unitid"><br/>
+        Date Range : <input type="date" name="fromdate"> - <input type="date" name="enddate"> <br /><br />
+
+        <input type='submit' name='search_but' value='Search'>
+
+      </form>
+
+      <form enctype='multipart/form-data' action='#' method='get'>
+
+        <h3>Current Guests</h3>
+
+        Unit ID(Apartment ID): <input type="text" name="search_unitid"><br/>
+
+        <input type='submit' name='search_current_guest' value='Search'>
+
+      </form>
+
+      <table border="1">
+        
+        <tr>
+          <?php
+
+            foreach ($fieldArray as $key => $value) :
+            ?>
+            <th><?php echo $value; ?></th>
+
+          <?php endforeach; ?>
+        </tr>
+
+        <!-- #Reservation ID","Guest name","Guest Email","Room Name",Adults,Total,Paid,Balance,Country,"Arrival Date","Departure Date",Status,Created 
+
+          var_dump($date->format("Y-m-d"));
+
+        -->
+
+        <?php
+          foreach($searchResult as $document):
+        ?>
+        <tr>
+          <td><?php echo $document->Reservation_ID ?></td>
+          <td><?php echo $document->Guest_name ?></td>
+          <td><?php echo $document->Guest_Email ?></td>
+          <td><?php echo $document->Room_Name ?></td>
+          <td><?php echo $document->apartmentID ?></td>
+          <td><?php echo $document->Adults ?></td>
+          <td><?php echo $document->Total ?></td>
+          <td><?php echo $document->Paid ?></td>
+          <td><?php echo $document->Balance ?></td>
+          <td><?php echo $document->Country ?></td>
+          <td><?php echo $document->Arrival_Date ?></td>
+          <td><?php echo $document->Departure_Date ?></td>
+          <td><?php echo $document->Status ?></td>
+          <td><?php echo $document->Created ?></td>
+        </tr>
+      <?php endforeach; ?>
+
+      </table>
+      
     </body>
 </html>
