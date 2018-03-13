@@ -290,7 +290,8 @@
     <body>
       <form enctype='multipart/form-data' action='#' method='post'>
 
-        <h3>Stage 1 : Select the booking file to import: </h3>
+        <h3>Stage 1 : CSV to MongoDB</h3>
+        <h3>Select the booking file to import: </h3>
 
         <input size='50' type='file' name='filename'><br />
 
@@ -300,7 +301,7 @@
 
       <form enctype='multipart/form-data' action='#' method='get'>
 
-        <h3>Stage 2</h3>
+        <h3>Stage 2 : Search</h3>
         <h3>Advanced Search</h3>
 
         Guest name: <input type="text" name="guestname"><br/>
@@ -332,12 +333,6 @@
 
           <?php endforeach; ?>
         </tr>
-
-        <!-- #Reservation ID","Guest name","Guest Email","Room Name",Adults,Total,Paid,Balance,Country,"Arrival Date","Departure Date",Status,Created 
-
-          var_dump($date->format("Y-m-d"));
-
-        -->
 
         <?php
           foreach($searchResult as $document):
