@@ -290,7 +290,7 @@
     <body>
       <form enctype='multipart/form-data' action='#' method='post'>
 
-        <h3>Select the booking file to import: </h3>
+        <h3>Stage 1 : Select the booking file to import: </h3>
 
         <input size='50' type='file' name='filename'><br />
 
@@ -300,6 +300,7 @@
 
       <form enctype='multipart/form-data' action='#' method='get'>
 
+        <h3>Stage 2</h3>
         <h3>Advanced Search</h3>
 
         Guest name: <input type="text" name="guestname"><br/>
