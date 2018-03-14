@@ -28,8 +28,9 @@
     //FilePath with File name.
     $uploadfile = $uploaddir . basename($_FILES["filename"]["name"]);
 
-      //Check if uploaded file is CSV and not any other format.
-      if (($_FILES["filename"]["type"] == "text/csv")){
+      //Check if uploaded file is CSV and not any other format. //application/vnd.ms-excel
+      if (($_FILES["filename"]["type"] == "text/csv")
+        || ($_FILES["filename"]["type"] == "application/vnd.ms-excel")){
 
         //Move uploaded file to our Uploads folder.
         if (move_uploaded_file($_FILES["filename"]["tmp_name"], $uploadfile)) {
