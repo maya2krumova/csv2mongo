@@ -4,10 +4,10 @@
 */
   require 'vendor/autoload.php';
 
-	global $servername;
-	global $username;
-	global $password;
-	global $dbname;
+  global $servername;
+  global $username;
+  global $password;
+  global $dbname;
 
   $searchResult = array();
   $searchFlag = 0;
@@ -17,7 +17,7 @@
 
   error_reporting(E_ALL);
 
-	if(isset($_POST['submit'])) {
+  if(isset($_POST['submit'])) {
 
     $uploaddir = 'uploads/';
 
@@ -43,6 +43,8 @@
           $index = 0;
           $headIdx = 0;
           $headerCount = count($headerArray);
+
+          $update_apartmentID = -1;
 
           if (($handle = fopen($uploadfile, "r")) !== FALSE) {
 
@@ -87,6 +89,7 @@
                       } elseif ($headIdx == ($rowCount + 1)) {
 
                         $apartmentID = getApartmentID($data[6]);
+                        $update_apartmentID = $apartmentID;
                         $valArray[$headerArray[$headIdx]] = $apartmentID;
 
                       } elseif ($headIdx == ($rowCount + 2)) {
@@ -120,7 +123,12 @@
                     }
                 }
 
-                $bulk->insert($valArray);
+                // $bulk->insert($valArray);
+
+                if ($update_apartmentID > - 1) {
+                  $bulk->update(["apartmentID" => $update_apartmentID, "Status" => "Cancelled"], $valArray, ['multi' => false, 'upsert' => true]);
+
+                }
 
                 }
               }
@@ -143,7 +151,7 @@
       //echo incase user uploads a non-csv file.
       echo "Upload a CSV file Only.";
     }
-	}
+  }
   else if(isset($_GET['search_but'])) {
 
     $searchFlag = 1;
@@ -215,7 +223,7 @@
 
   function getApartmentID ($text) {
 
-  	$Address = array(
+    $Address = array(
     array('Room_Name' => 'Schwabacher 65 - 2. OG links Room 1','unitId' => '23'),
     array('Room_Name' => 'Schwabacher 65 - 2. OG links Room 2','unitId' => '24'),
     array('Room_Name' => 'Schwabacher 65 - 2. OG links Room 3','unitId' => '25'),
@@ -252,18 +260,18 @@
 
     foreach($Address as $key=>$value) {
 
-  	    foreach($value as $c=>$d) {
+        foreach($value as $c=>$d) {
 
           $val = $value['Room_Name'];
 
           if (preg_match("/$val/i", $text))
 
-            return $value['unitId'];		
-  		}
+            return $value['unitId'];    
+      }
     }
   }
 
-	
+  
   $fieldArray = ["Reservation ID","Guest name","Guest Email","Room Name", "Apartment ID", "Adults","Total","Paid","Balance","Country","Arrival Date","Departure Date","Status","Created"];
 
   // Global search for non query
