@@ -44,7 +44,7 @@
           $headIdx = 0;
           $headerCount = count($headerArray);
 
-          $update_apartmentID = -1;
+          $update_reservationID = "";
 
           if (($handle = fopen($uploadfile, "r")) !== FALSE) {
 
@@ -89,7 +89,6 @@
                       } elseif ($headIdx == ($rowCount + 1)) {
 
                         $apartmentID = getApartmentID($data[6]);
-                        $update_apartmentID = $apartmentID;
                         $valArray[$headerArray[$headIdx]] = $apartmentID;
 
                       } elseif ($headIdx == ($rowCount + 2)) {
@@ -121,14 +120,13 @@
 
 
                     }
-                }
+                  }
 
-                // $bulk->insert($valArray);
+                  // $bulk->insert($valArray);
 
-                if ($update_apartmentID > - 1) {
-                  $bulk->update(["apartmentID" => $update_apartmentID], $valArray, ['multi' => false, 'upsert' => true]);
+                  $update_reservationID = $data[0];
 
-                }
+                  $bulk->update(["Reservation_ID" => $update_apartmentID], $valArray, ['multi' => false, 'upsert' => true]);
 
                 }
               }
@@ -142,6 +140,7 @@
         }
 
         $message = "Importing completed";
+
         echo "<script type='text/javascript'>alert('$message');</script>";
 
       }
@@ -186,7 +185,6 @@
 
     $options = [];
 
-
     $query = new MongoDB\Driver\Query($filter, $options);
     $searchResult = $manager->executeQuery('booking.collection', $query);
     
@@ -215,11 +213,7 @@
 
     $query = new MongoDB\Driver\Query($filter, $options);
     $searchResult = $manager->executeQuery('booking.collection', $query);
-    
-
   }
-
-
 
   function getApartmentID ($text) {
 
