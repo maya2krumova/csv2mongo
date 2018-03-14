@@ -126,7 +126,7 @@
                 // $bulk->insert($valArray);
 
                 if ($update_apartmentID > - 1) {
-                  $bulk->update(["apartmentID" => $update_apartmentID, "Status" => "Cancelled"], $valArray, ['multi' => false, 'upsert' => true]);
+                  $bulk->update(["apartmentID" => $update_apartmentID], $valArray, ['multi' => false, 'upsert' => true]);
 
                 }
 
