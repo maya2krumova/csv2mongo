@@ -129,7 +129,7 @@
 
                   $update_reservationID = $data[0];
 
-                  $bulk->update(["Reservation_ID" => $update_apartmentID], $valArray, ['multi' => false, 'upsert' => true]);
+                  $bulk->update(["Reservation_ID" => $update_reservationID], $valArray, ['multi' => false, 'upsert' => true]);
 
                 }
               }
