@@ -104,6 +104,7 @@
                       } elseif ($headIdx == ($rowCount + 3)) {
 
                         $date_arrived = new DateTime($data[14]);
+                        $date_arrived->setTime(0,0,0);
 
                         $arrival_timestamp = $date_arrived->getTimestamp();
 
@@ -112,6 +113,7 @@
                       } elseif ($headIdx == ($rowCount + 4)) {
 
                         $date_depature = new DateTime($data[15]);
+                        $date_depature->setTime(0,0,0);
 
                         $departure_timestamp = $date_depature->getTimestamp();
 
@@ -171,18 +173,35 @@
       $filter["apartmentID"] = $form_unitid;
     }
 
-    if (!empty($form_from_date)) {
-      
-      $fromdate = DateTime::createFromFormat("Y-m-d", $form_from_date);
-
-      $filter["arrival_timestamp"] = array('$lte' => $fromdate->getTimestamp());
-    }
+    $fromdate = null;
+    $enddate = null;
 
     if (!empty($form_end_date)) {
       $enddate = DateTime::createFromFormat("Y-m-d", $form_end_date);
+      $enddate->setTime(0,0,0);
 
-      $filter["departure_timestamp"] = array('$gt' => $enddate->getTimestamp());
+      // $filter["departure_timestamp"] = array('$gte' => $enddate->getTimestamp());
     }
+
+    if (!empty($form_from_date)) {
+      
+      $fromdate = DateTime::createFromFormat("Y-m-d", $form_from_date);
+      $fromdate->setTime(0,0,0);
+
+      if ($enddate == null) {
+
+        $filter["arrival_timestamp"] = array('$gte' => $fromdate->getTimestamp());
+
+      } else {
+
+        $filter["arrival_timestamp"] = array('$gte' => $fromdate->getTimestamp(), '$lte' => $enddate->getTimestamp());
+
+      }
+
+      
+    }
+
+    
 
     $options = [];
 
@@ -204,6 +223,8 @@
     }
 
     $today = new DateTime();
+    $today->setTime(0,0,0);
+
     $today_timestamp = $today->getTimestamp();
 
     $filter["arrival_timestamp"] = array('$lte' => $today_timestamp);
@@ -276,6 +297,8 @@
     $initFilter = [];
 
     $today = new DateTime();
+    $today->setTime(0,0,0);
+
     $today_timestamp = $today->getTimestamp();
 
     $initFilter["arrival_timestamp"] = array('$lte' => $today_timestamp);
