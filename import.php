@@ -11,6 +11,11 @@
 
   $searchResult = array();
   $searchFlag = 0;
+  
+  $headerCount = 0;
+  $csvHeaderArray = array();
+
+  $update_reservationID = "";
 
   $manager = new MongoDB\Driver\Manager('mongodb://127.0.0.1:27017'); // server code
   // $manager = new MongoDB\Driver\Manager('mongodb://localhost:27017'); // local codee
@@ -24,7 +29,7 @@
     if (!file_exists('uploads/')) {
       mkdir('uploads/', 0777, true);
     }
-    
+
     //FilePath with File name.
     $uploadfile = $uploaddir . basename($_FILES["filename"]["name"]);
 
@@ -39,14 +44,9 @@
 
           $bulk = new MongoDB\Driver\BulkWrite;
 
-          $headerArray = array("Reservation_ID","Reservation_Code","Group_ID","Channel_ID","Guest_name","Guest_Email","Room_Name","Adults","Children","Infants","Total","Paid","Balance","Country","Arrival_Date","Departure_Date","Status","Created", "unitCode", "apartmentID", "interval","arrival_timestamp", "departure_timestamp");
-
           $index = 0;
           $headIdx = 0;
-          $headerCount = count($headerArray);
-
-          $update_reservationID = "";
-
+          
           if (($handle = fopen($uploadfile, "r")) !== FALSE) {
 
             while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
@@ -56,82 +56,94 @@
                 $rowCount = count($data);
 
                 $valArray = array();
-                // we add two extra data fields - unitCode, apartmentID, interval, arrival_timestamp, departure_timestamp
-                if ($headerCount == ($rowCount + 5)) {
 
-                  for ($headIdx=0; $headIdx < $headerCount; $headIdx++) {
+                for ($headIdx=0; $headIdx < $headerCount; $headIdx++) {
 
-                    if ($headIdx < $rowCount) {
+                  if ($headIdx < $rowCount)
+                  {
+                    $keyName = $csvHeaderArray[$headIdx];
+                    $valArray[$csvHeaderArray[$headIdx]] = $data[$headIdx];
+                  }
+                  else
+                  {
 
-                      if ($headIdx == 7 || $headIdx == 8 || $headIdx == 9) {
+                    if ($headIdx == $rowCount ) {
 
-                        $valArray[$headerArray[$headIdx]] = intval($data[$headIdx]);
+                      // add unitCode
+                      // $unitCode = mt_rand(10000, 99999);
+                      $unitCode = substr($valArray["Reservation_ID"], 0, 5);
+                      $valArray[$csvHeaderArray[$headIdx]] = $unitCode;
 
-                      } else if ($headIdx == 10 || $headIdx == 11 || $headIdx == 12) {
+                    } elseif ($headIdx == ($rowCount + 1)) {
 
-                        $valArray[$headerArray[$headIdx]] = floatval($data[$headIdx]);
+                      $apartmentID = getApartmentID($valArray["Room_Name"]);
+                      $valArray[$csvHeaderArray[$headIdx]] = $apartmentID;
 
-                      }
-                      else {
+                    } elseif ($headIdx == ($rowCount + 2)) {
 
-                        $valArray[$headerArray[$headIdx]] = $data[$headIdx];
-                        
-                      }
+                      $date_arrived = new DateTime($valArray["Arrival_Date"]);
+                      $date_depature = new DateTime($valArray["Departure_Date"]);
 
-                    } else {
+                      $interval = $date_arrived->diff($date_depature);
 
-                      if ($headIdx == $rowCount ) {
+                      $valArray[$csvHeaderArray[$headIdx]] = intval($interval->format("%a"));
 
-                        // add unitCode
-                        // $unitCode = mt_rand(10000, 99999);
-                        $unitCode = substr($data[0], 0, 5);
-                        $valArray[$headerArray[$headIdx]] = $unitCode;
+                    } elseif ($headIdx == ($rowCount + 3)) {
 
-                      } elseif ($headIdx == ($rowCount + 1)) {
+                      $date_arrived = new DateTime($valArray["Arrival_Date"]);
+                      $date_arrived->setTime(0,0,0);
 
-                        $apartmentID = getApartmentID($data[6]);
-                        $valArray[$headerArray[$headIdx]] = $apartmentID;
+                      $arrival_timestamp = $date_arrived->getTimestamp();
 
-                      } elseif ($headIdx == ($rowCount + 2)) {
+                      $valArray[$csvHeaderArray[$headIdx]] = $arrival_timestamp;
 
-                        $date_arrived = new DateTime($data[14]);
-                        $date_depature = new DateTime($data[15]);
+                    } elseif ($headIdx == ($rowCount + 4)) {
 
-                        $interval = $date_arrived->diff($date_depature);
+                      $date_depature = new DateTime($valArray["Departure_Date"]);
+                      $date_depature->setTime(0,0,0);
 
-                        $valArray[$headerArray[$headIdx]] = intval($interval->format("%a"));
+                      $departure_timestamp = $date_depature->getTimestamp();
 
-                      } elseif ($headIdx == ($rowCount + 3)) {
-
-                        $date_arrived = new DateTime($data[14]);
-                        $date_arrived->setTime(0,0,0);
-
-                        $arrival_timestamp = $date_arrived->getTimestamp();
-
-                        $valArray[$headerArray[$headIdx]] = $arrival_timestamp;
-
-                      } elseif ($headIdx == ($rowCount + 4)) {
-
-                        $date_depature = new DateTime($data[15]);
-                        $date_depature->setTime(0,0,0);
-
-                        $departure_timestamp = $date_depature->getTimestamp();
-
-                        $valArray[$headerArray[$headIdx]] = $departure_timestamp;
-
-                      }
-
+                      $valArray[$csvHeaderArray[$headIdx]] = $departure_timestamp;
 
                     }
                   }
+                }
 
-                  // $bulk->insert($valArray);
+                // $bulk->insert($valArray);
 
-                  $update_reservationID = $data[0];
+                $update_reservationID = $valArray->Reservation_ID;
 
-                  $bulk->update(["Reservation_ID" => $update_reservationID], $valArray, ['multi' => false, 'upsert' => true]);
+                $bulk->update(["Reservation_ID" => $update_reservationID], $valArray, ['multi' => false, 'upsert' => true]);
+
+                
+              }
+              else
+              {
+
+                $colCount = count($data);
+
+                for ($colIndex=0; $colIndex < $colCount; $colIndex++) {
+
+                  $colName = str_replace(" ", "_", $data[$colIndex]);
+                  $colName = str_replace('"', "", $colName);
+
+                  $whiteSpace = '_';  //if you dnt even want to allow white-space set it to ''
+                  $pattern = '/[^a-zA-Z0-9'  . $whiteSpace . ']/u';
+                  $cleared = preg_replace($pattern, '', (string) $colName);
+
+                  $csvHeaderArray[] = $cleared;
 
                 }
+
+                $csvHeaderArray[] = "unitCode";
+                $csvHeaderArray[] = "apartmentID";
+                $csvHeaderArray[] = "interval";
+                $csvHeaderArray[] = "arrival_timestamp";
+                $csvHeaderArray[] = "departure_timestamp";
+
+                $headerCount = count($csvHeaderArray);
+
               }
 
               $index++;
@@ -139,14 +151,14 @@
 
             $result = $manager->executeBulkWrite('booking.collection', $bulk);
 
-          fclose($handle);
+            fclose($handle);
+          }
+
+          $message = "Importing completed";
+
+          echo "<script type='text/javascript'>alert('$message');</script>";
+
         }
-
-        $message = "Importing completed";
-
-        echo "<script type='text/javascript'>alert('$message');</script>";
-
-      }
     }
     else
     {
@@ -184,7 +196,7 @@
     }
 
     if (!empty($form_from_date)) {
-      
+
       $fromdate = DateTime::createFromFormat("Y-m-d", $form_from_date);
       $fromdate->setTime(0,0,0);
 
@@ -198,16 +210,16 @@
 
       }
 
-      
+
     }
 
-    
+
 
     $options = [];
 
     $query = new MongoDB\Driver\Query($filter, $options);
     $searchResult = $manager->executeQuery('booking.collection', $query);
-    
+
 
   }
   else if(isset($_GET['search_current_guest'])) {
@@ -282,12 +294,12 @@
 
           if (preg_match("/$val/i", $text))
 
-            return $value['unitId'];    
+            return $value['unitId'];
       }
     }
   }
 
-  
+
   $fieldArray = ["Reservation ID","Guest name","Guest Email","Room Name", "Apartment ID", "Adults","Total","Paid","Balance","Country","Arrival Date","Departure Date","Status","Created"];
 
   // Global search for non query
@@ -307,8 +319,8 @@
 
     $query = new MongoDB\Driver\Query($initFilter, $options);
     $searchResult = $manager->executeQuery('booking.collection', $query);
-    
-  } 
+
+  }
 
 ?>
 
@@ -349,7 +361,7 @@
       </form>
 
       <table border="1">
-        
+
         <tr>
           <?php
 
@@ -382,6 +394,6 @@
       <?php endforeach; ?>
 
       </table>
-      
+
     </body>
 </html>
