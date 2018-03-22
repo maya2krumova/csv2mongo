@@ -112,7 +112,7 @@
 
                 // $bulk->insert($valArray);
 
-                $update_reservationID = $valArray->Reservation_ID;
+                $update_reservationID = $valArray["Reservation_ID"];
 
                 $bulk->update(["Reservation_ID" => $update_reservationID], $valArray, ['multi' => false, 'upsert' => true]);
 
